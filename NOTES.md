@@ -62,6 +62,6 @@
  - raspistill can do flipping
  - All the flipping and rotating can be done with a single vertical flip. Consider barrel distortion though!
  - Also is the flipping required at all? Sun azimuth angle is also added a 180, so is it possible to not rotate/flip and leave the 180 from the sun azimuth?
- 
+ - It seems the rotations and barrel distortions can be done with Imagemagick in one command: `convert filename -distort barrel '0.005 -0.025 -0.028' -flip filename`
  
  
