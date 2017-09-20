@@ -11,16 +11,15 @@ import (
 	"time"
 
 	suncalc "github.com/mourner/suncalc-go"
+	"github.com/ubergesundheit/cloudcoverage/imagedimension"
+	"github.com/ubergesundheit/cloudcoverage/raspistill"
 	"github.com/ubergesundheit/cloudcoverage/sensebox"
 )
 
 var (
-	staticRaspistillArgs       = []string{"-o", "-", "--timeout", "1", "--thumb", "none", "--nopreview", "--quality", "100", "--metering", "backlit", "--ISO", "100", "--awb", "sun"}
+	// staticRaspistillArgs       = []string{"-o", "-", "--timeout", "1", "--thumb", "none", "--nopreview", "--quality", "100", "--metering", "backlit", "--ISO", "100", "--awb", "sun"}
 	staticConvertArgs          = []string{"jpg:-", "-distort", "barrel", "0.005 -0.025 -0.028", "-fx", "(b==0) ? 0 : (r/b)"}
 	staticConvertHistogramArgs = []string{"-define", "histogram:unique-colors=true", "-format", "%c", "histogram:info:-"}
-	FullSize                   = ImageDimension{2592, 1944}
-	HalfSize                   = ImageDimension{FullSize.width / 2, FullSize.height / 2}
-	QuarterSize                = ImageDimension{HalfSize.width / 2, HalfSize.height / 2}
 )
 
 func bla(winkel, laenge, centerX, centerY float64) (x, y float64) {
@@ -29,7 +28,7 @@ func bla(winkel, laenge, centerX, centerY float64) (x, y float64) {
 	return
 }
 
-func convertFillArgs(imageDimension ImageDimension, location *sensebox.Location, timestamp time.Time) []string {
+func convertFillArgs(imageDimension imagedimension.ImageDimension, location *sensebox.Location, timestamp time.Time) []string {
 	azimuth, altitude := suncalc.SunPosition(timestamp, location.Latitude, location.Longitude)
 
 	// var sunPos = SunCalc.getPosition(new Date(req.body.timestamp), location.lat, location.lon)
@@ -65,7 +64,7 @@ func convertFillArgs(imageDimension ImageDimension, location *sensebox.Location,
 	}
 
 	fmt.Println(azimuth, altitude, azimin, azimax)
-	centerX, centerY := imageDimension.center()
+	centerX, centerY := imageDimension.Center()
 
 	// b := (yA - m * xA)
 	//b1 := centerY - math.Tan(azimin)*centerX
@@ -80,10 +79,13 @@ func convertFillArgs(imageDimension ImageDimension, location *sensebox.Location,
 	return []string{"-fill", `#f0f`, "-draw", path}
 }
 
-func GrabImageAndCountClouds(imageDimension ImageDimension, location *sensebox.Location, timestamp time.Time) (count int, err error) {
-	raspistillArgs := append([]string{"--width", strconv.Itoa(imageDimension.width), "--height", strconv.Itoa(imageDimension.height)}, staticRaspistillArgs...)
-	fmt.Println(raspistillArgs)
-	raspistillCommand := exec.Command("raspistill", raspistillArgs...)
+func GrabImageAndCountClouds(imageDimension imagedimension.ImageDimension, location *sensebox.Location, timestamp time.Time) (count int, err error) {
+
+	pr, pw := io.Pipe()
+	err = raspistill.GrabImage(imageDimension, "-", pw)
+	if err != nil {
+		return
+	}
 
 	convertArgs := append(staticConvertArgs, convertFillArgs(imageDimension, location, timestamp)...)
 	// convertArgs = append(convertArgs, staticConvertHistogramArgs...)
@@ -91,22 +93,13 @@ func GrabImageAndCountClouds(imageDimension ImageDimension, location *sensebox.L
 	fmt.Println(convertArgs)
 	convertCommand := exec.Command("convert", convertArgs...)
 
-	pr, pw := io.Pipe()
-	raspistillCommand.Stdout = pw
 	convertCommand.Stdin = pr
 
 	var pixelCount bytes.Buffer
 	convertCommand.Stdout = &pixelCount
 
-	var raspistillStdErr bytes.Buffer
 	var convertStdErr bytes.Buffer
-	raspistillCommand.Stderr = &raspistillStdErr
 	convertCommand.Stderr = &convertStdErr
-
-	err = raspistillCommand.Start()
-	if err != nil {
-		return
-	}
 
 	err = convertCommand.Start()
 	if err != nil {
@@ -115,14 +108,8 @@ func GrabImageAndCountClouds(imageDimension ImageDimension, location *sensebox.L
 
 	go func() {
 		defer pw.Close()
-
-		raspistillCommand.Wait()
 	}()
 	convertCommand.Wait()
-	if len(raspistillStdErr.String()) != 0 {
-		err = fmt.Errorf("raspistill error: %q with arguments %q", strings.TrimSpace(raspistillStdErr.String()), raspistillArgs)
-		return
-	}
 
 	if len(convertStdErr.String()) != 0 {
 		err = fmt.Errorf("convert error: %q with arguments %q", strings.TrimSpace(convertStdErr.String()), convertArgs)

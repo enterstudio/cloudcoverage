@@ -3,13 +3,15 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/ubergesundheit/cloudcoverage/imagedimension"
 	"github.com/ubergesundheit/cloudcoverage/imageprocessing"
 	"github.com/ubergesundheit/cloudcoverage/sensebox"
 	"gopkg.in/urfave/cli.v1"
 )
 
-func execute(imageDimension imageprocessing.ImageDimension, box *sensebox.Sensebox) (err error) {
+func execute(imageDimension imagedimension.ImageDimension, box *sensebox.Sensebox) (err error) {
 	//r := raspi.NewAdaptor()
 	//r.Connect()
 	//tsl45315 := sensors.NewTSL45315Driver(r)
@@ -29,7 +31,7 @@ func execute(imageDimension imageprocessing.ImageDimension, box *sensebox.Senseb
 		return
 	}
 
-	count, err := imageprocessing.GrabImageAndCountClouds(imageDimension, location)
+	count, err := imageprocessing.GrabImageAndCountClouds(imageDimension, location, time.Now())
 	if err != nil {
 		return
 	}
@@ -58,16 +60,16 @@ func main() {
 	}
 
 	app.Action = func(c *cli.Context) (err error) {
-		var imageDimension = imageprocessing.FullSize
+		var imageDimension = imagedimension.FullSize
 
 		if c.Bool("half") == true && c.Bool("quarter") == true {
 			return cli.NewExitError("--half and --quarter are exclusive to each other", 1)
 		}
 
 		if c.Bool("half") == true {
-			imageDimension = imageprocessing.HalfSize
+			imageDimension = imagedimension.HalfSize
 		} else if c.Bool("quarter") == true {
-			imageDimension = imageprocessing.QuarterSize
+			imageDimension = imagedimension.QuarterSize
 		}
 
 		sb, err := sensebox.NewSensebox(c.String("boxID"), c.String("ccID"))
