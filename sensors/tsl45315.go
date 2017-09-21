@@ -47,7 +47,7 @@ func (t *TSL45315Driver) Start() (err error) {
 }
 
 // Lux returns the current temperature, in celsius degrees.
-func (t *TSL45315Driver) Lux() (lux float32, err error) {
+func (t *TSL45315Driver) Lux() (lux float64, err error) {
 	if _, err := t.connection.Write([]byte{0x84}); err != nil {
 		return 0, err
 	}
@@ -61,24 +61,24 @@ func (t *TSL45315Driver) Lux() (lux float32, err error) {
 		return 0, errors.New("too few bytes")
 	}
 
-	lux = float32(4 * (uint32(data[1])<<8 | uint32(data[0])))
+	lux = float64(4 * (uint32(data[1])<<8 | uint32(data[0])))
 
 	return
 }
 
-func (t *TSL45315Driver) LuxTimes(times int) (lux float32, err error) {
+func (t *TSL45315Driver) LuxTimes(times int) (lux float64, err error) {
 	lux, err = t.Lux()
 	if err != nil {
 		return
 	}
 
-	var tempLux float32
+	var tempLux float64
 	for i := 1; i < times; i++ {
 		tempLux, err = t.Lux()
 		if err != nil {
 			return
 		}
-		lux = ((lux * float32(i)) + tempLux) / float32(i+1)
+		lux = ((lux * float64(i)) + tempLux) / float64(i+1)
 		time.Sleep(120 * time.Millisecond)
 	}
 
